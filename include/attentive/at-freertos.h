@@ -9,6 +9,10 @@
 #ifndef ATTENTIVE_AT_UNIX_H
 #define ATTENTIVE_AT_UNIX_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <attentive/at.h>
 
 /**
@@ -19,6 +23,10 @@
  * @returns Instance pointer on success, NULL and sets errno on failure.
  */
 struct at *at_alloc_freertos(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
 

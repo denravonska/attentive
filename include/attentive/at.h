@@ -9,6 +9,10 @@
 #ifndef ATTENTIVE_AT_H
 #define ATTENTIVE_AT_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <attentive/parser.h>
 
 /*
@@ -187,6 +191,10 @@ bool at_send_raw(struct at *at, const void *data, size_t size);
             return -1;                                                      \
         }                                                                   \
     } while (0)
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
 
