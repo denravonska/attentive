@@ -16,17 +16,10 @@ extern "C" {
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <time.h>
 
 #include <attentive/at.h>
-
-#if defined(__cplusplus) || !defined(__STRICT_ANSI__) || !defined(__ssize_t)
- /* always defined in C++ and non-strict C for consistency of debug info */
-  typedef int ssize_t;   /* see <stddef.h> */
-  #if !defined(__cplusplus) && defined(__STRICT_ANSI__)
-    #define __ssize_t 1
-  #endif
-#endif
 
 #define CELLULAR_IMEI_LENGTH 15
 #define CELLULAR_MEID_LENGTH 14
