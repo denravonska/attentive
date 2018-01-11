@@ -35,6 +35,11 @@ enum {
     CREG_REGISTERED_ROAMING = 5,
 };
 
+enum socket_type {
+    TCP_SOCKET,
+    UDP_SOCKET
+};
+
 struct cellular {
     const struct cellular_ops *ops;
     struct at *at;
@@ -70,6 +75,7 @@ struct cellular_ops {
 //    /** Get network date and time. */
 //    int (*clock_ntptime)(struct cellular *modem, struct timespec *ts);
 
+    int (*socket_create)(struct cellular *modem, enum socket_type type);
     int (*socket_connect)(struct cellular *modem, int connid, const char *host, uint16_t port);
     ssize_t (*socket_send)(struct cellular *modem, int connid, const void *buffer, size_t amount, int flags);
     ssize_t (*socket_recv)(struct cellular *modem, int connid, void *buffer, size_t length, int flags);
@@ -131,6 +137,9 @@ void cellular_telit2_free(struct cellular *modem);
 
 struct cellular *cellular_sim800_alloc(void);
 void cellular_sim800_free(struct cellular *modem);
+
+struct cellular *cellular_ublox_alloc(void);
+void cellular_ublox_free(struct cellular *modem);
 
 #ifdef __cplusplus
 }
