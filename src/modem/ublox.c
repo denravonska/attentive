@@ -26,7 +26,7 @@ static const char *const ublox_urc_responses[] = {
     NULL
 };
 
-struct cellular_telit2 {
+struct cellular_ublox {
     struct cellular dev;
 
     int locate_status;
@@ -37,7 +37,7 @@ static enum at_response_type scan_line(const char *line, size_t len, void *arg) 
     (void) line;
     (void) len;
 
-    struct cellular_telit2 *priv = arg;
+    struct cellular_ublox *priv = arg;
     (void) priv;
 
     if (at_prefix_in_table(line, ublox_urc_responses))
@@ -47,7 +47,7 @@ static enum at_response_type scan_line(const char *line, size_t len, void *arg) 
 }
 
 static void handle_urc(const char *line, size_t len, void *arg) {
-    struct cellular_telit2 *priv = arg;
+    struct cellular_ublox *priv = arg;
 
     int status;
     if (sscanf(line, "#AGPSRING: %d", &status) == 1) {
@@ -199,108 +199,52 @@ static int ublox_socket_connect(struct cellular *modem, int connid, const char *
 static ssize_t ublox_socket_send(struct cellular *modem, int connid, const void *buffer, size_t amount, int flags)
 {
     (void) flags;
+    const char *response;
 
     /* Request transmission. */
     at_set_timeout(modem->at, 150);
     at_expect_dataprompt(modem->at);
-    at_command_simple(modem->at, "AT#SSENDEXT=%d,%zu", connid, amount);
+    response = at_command(modem->at, "AT+USOWR=%d,%zu", connid, amount);
+
+    /* Wait for @ prompt */
+    if(response == NULL || response[0] != '@')
+        return 0;
 
     /* Send raw data. */
-    at_command_raw_simple(modem->at, buffer, amount);
+    response = at_command_raw(modem->at, buffer, amount);
 
-    return amount;
-}
+    int bytes_written = 0;
+    at_simple_scanf(response, "+USOWR: %*d,%d", &bytes_written);
 
-static enum at_response_type scanner_srecv(const char *line, size_t len, void *arg)
-{
-    (void) len;
-    (void) arg;
-
-    int chunk;
-    if (sscanf(line, "#SRECV: %*d,%d", &chunk) == 1)
-        return AT_RESPONSE_RAWDATA_FOLLOWS(chunk);
-
-    return AT_RESPONSE_UNKNOWN;
+    return bytes_written;
 }
 
 static ssize_t ublox_socket_recv(struct cellular *modem, int connid, void *buffer, size_t length, int flags)
 {
     (void) flags;
 
-    int cnt = 0;
-    while (cnt < (int) length) {
-        int chunk = (int) length - cnt;
-        /* Limit read size to avoid overflowing AT response buffer. */
-        if (chunk > 128)
-            chunk = 128;
+    at_set_timeout(modem->at, 150);
+    const char *response = at_command(modem->at, "AT+USORD=%d,%zu", connid, length);
+    if(response == NULL)
+        return 0;
 
-        /* Perform the read. */
-        at_set_timeout(modem->at, 150);
-        at_set_command_scanner(modem->at, scanner_srecv);
-        const char *response = at_command(modem->at, "AT#SRECV=%d,%d", connid, chunk);
-        if (response == NULL)
-            return -1;
+    int cnt;
+    at_simple_scanf(response, "+USORD: %*d,%d", &cnt);
+    if(cnt <= 0)
+        return 0;
 
-        /* Find the header line. */
-        int bytes;
-        at_simple_scanf(response, "#SRECV: %*d,%d", &bytes);
+    const char* data = strchr(response, '"');
+    if(data == NULL)
+        return 0;
 
-        /* Bail out if we're out of data. Message is misleading. */
-        /* FIXME: We should maybe block until we receive something? */
-        if (!strcmp(response, "+CME ERROR: activation failed"))
-            break;
-
-        /* Locate the payload. */
-        const char *data = strchr(response, '\n');
-        if (data == NULL) {
-            errno = EPROTO;
-            return -1;
-        }
-        data += 1;
-
-        /* Copy payload to result buffer. */
-        memcpy((char *)buffer + cnt, data, bytes);
-        cnt += bytes;
-    }
-
+    memcpy((char *)buffer, data, cnt);
     return cnt;
-}
-
-static int ublox_socket_waitack(struct cellular *modem, int connid)
-{
-    const char *response;
-
-    at_set_timeout(modem->at, 5);
-    for (int i=0; i<UBLOX_WAITACK_TIMEOUT; i++) {
-        /* Read number of bytes waiting. */
-        int ack_waiting;
-        response = at_command(modem->at, "AT#SI=%d", connid);
-        at_simple_scanf(response, "#SI: %*d,%*d,%*d,%*d,%d", &ack_waiting);
-
-        /* ack_waiting is meaningless if socket is not connected. Check this. */
-        int socket_status;
-        response = at_command(modem->at, "AT#SS=%d", connid);
-        at_simple_scanf(response, "#SS: %*d,%d", &socket_status);
-        if (socket_status == 0) {
-            errno = ECONNRESET;
-            return -1;
-        }
-
-        /* Return if all bytes were acknowledged. */
-        if (ack_waiting == 0)
-            return 0;
-
-        sleep(1);
-    }
-
-    errno = ETIMEDOUT;
-    return -1;
 }
 
 static int ublox_socket_close(struct cellular *modem, int connid)
 {
     at_set_timeout(modem->at, 150);
-    at_command_simple(modem->at, "AT#SH=%d", connid);
+    at_command_simple(modem->at, "AT+USOCL=%d", connid);
 
     return 0;
 }
@@ -400,7 +344,7 @@ retry:
 
 static int ublox_locate(struct cellular *modem, float *latitude, float *longitude, float *altitude)
 {
-    struct cellular_telit2 *priv = (struct cellular_telit2 *) modem;
+    struct cellular_ublox *priv = (struct cellular_ublox *) modem;
 
     priv->locate_status = -1;
     at_set_timeout(modem->at, 150);
@@ -449,7 +393,6 @@ static const struct cellular_ops ublox_ops = {
     .socket_connect = ublox_socket_connect,
     .socket_send = ublox_socket_send,
     .socket_recv = ublox_socket_recv,
-    .socket_waitack = ublox_socket_waitack,
     .socket_close = ublox_socket_close,
     .ftp_open = ublox_ftp_open,
     .ftp_get = ublox_ftp_get,
@@ -460,7 +403,7 @@ static const struct cellular_ops ublox_ops = {
 
 struct cellular *cellular_ublox_alloc(void)
 {
-    struct cellular_telit2 *modem = malloc(sizeof(struct cellular_telit2));
+    struct cellular_ublox *modem = malloc(sizeof(struct cellular_ublox));
     if (modem == NULL) {
         errno = ENOMEM;
         return NULL;
