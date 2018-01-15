@@ -417,7 +417,7 @@ struct cellular *cellular_ublox_alloc(void)
 
 void cellular_ublox_free(struct cellular *modem)
 {
-    free(modem);
+    free((struct cellular_ublox*) modem);
 }
 
 /* vim: set ts=4 sw=4 et: */

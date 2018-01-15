@@ -466,7 +466,7 @@ struct cellular *cellular_telit2_alloc(void)
 
 void cellular_telit2_free(struct cellular *modem)
 {
-    free(modem);
+    free((struct cellular_telit2*) modem);
 }
 
 /* vim: set ts=4 sw=4 et: */
