@@ -56,7 +56,7 @@ static void handle_urc(const char *line, size_t len, void *arg) {
         return;
     }
 
-    printf("[telit2@%p] urc: %.*s\n", priv, (int) len, line);
+    printf("[ublox@%p] urc: %.*s\n", priv, (int) len, line);
 }
 
 static const struct at_callbacks ublox_callbacks = {
@@ -68,14 +68,12 @@ static int ublox_attach(struct cellular *modem)
 {
     at_set_callbacks(modem->at, &ublox_callbacks, (void *) modem);
 
-    at_set_timeout(modem->at, 1);
+    at_set_timeout(modem->at, 2);
     at_command(modem->at, "AT");        /* Aid autobauding. Always a good idea. */
     at_command(modem->at, "ATE0");      /* Disable local echo. */
 
     /* Initialize modem. */
     static const char *const init_strings[] = {
-        "AT&K0",                        /* Disable hardware flow control. */
-        "AT#SELINT=2",                  /* Set Telit module compatibility level. */
         "AT+CMEE=2",                    /* Enable extended error reporting. */
         NULL
     };
