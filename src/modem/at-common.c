@@ -65,7 +65,7 @@ int cellular_op_imei(struct cellular *modem, char *buf, size_t len)
 {
     char fmt[16];
     if (snprintf(fmt, sizeof(fmt), "%%[0-9]%ds", (int) len) >= (int) sizeof(fmt)) {
-        return -1;
+      return -1;
     }
 
     at_set_timeout(modem->at, 1);
@@ -80,7 +80,7 @@ int cellular_op_iccid(struct cellular *modem, char *buf, size_t len)
 {
     char fmt[16];
     if (snprintf(fmt, sizeof(fmt), "%%[0-9]%ds", (int) len) >= (int) sizeof(fmt)) {
-        return -1;
+      return -1;
     }
 
     at_set_timeout(modem->at, 5);
@@ -111,6 +111,62 @@ int cellular_op_rssi(struct cellular *modem)
     at_simple_scanf(response, "+CSQ: %d,%*d", &rssi);
 
     return rssi;
+}
+
+int cellular_op_cops(struct cellular *modem)
+{
+    int ops = -1;
+
+    at_set_timeout(modem->at, AT_TIMEOUT_SHORT);
+    at_command_simple(modem->at, "AT+COPS=3,2");
+    const char *response = at_command(modem->at, "AT+COPS?");
+    at_simple_scanf(response, "+COPS: %*d,%*d,\"%d\"", &ops);
+
+    return ops;
+}
+
+int cellular_op_test(struct cellular *modem)
+{
+    at_set_timeout(modem->at, AT_TIMEOUT_SHORT);
+    at_command_simple(modem->at, "AT");
+
+    return 0;
+}
+
+int cellular_op_ats0(struct cellular *modem)
+{
+    at_set_timeout(modem->at, AT_TIMEOUT_SHORT);
+    at_command_simple(modem->at, "ATS0=2");
+
+    return 0;
+}
+
+int cellular_op_sms(struct cellular *modem, char* num, char* msg, size_t len)
+{
+    // Check SMS length
+    /*if(len > 140) {
+      return -1;
+    }
+    at_set_timeout(modem->at, AT_TIMEOUT_SHORT);
+    // SMS Center
+    at_config_simple(modem->at, "CSCA", "\"+8613010811500\"", 30);
+    // Text mode
+    at_command_simple(modem->at, "AT+CMGF=1");
+    // SMS command
+    at_expect_dataprompt(modem->at, "> ");
+    at_command_simple(modem->at, "AT+CMGS=\"%s\"", num);
+    // SMS data
+    at_set_timeout(modem->at, AT_TIMEOUT_SMS);
+    msg[len - 1] = 0x1A;
+    const char* response = at_command_raw(modem->at, msg, len);
+    if(response == NULL) {
+      return -1;  // timeout
+    }
+    if(strncmp(response, "+CMGS:", strlen("+CMGS:"))) {
+      return -1;  // response
+    }*/
+
+    return 0;
 }
 
 //int cellular_op_clock_gettime(struct cellular *modem, struct timespec *ts)

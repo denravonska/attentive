@@ -32,12 +32,12 @@
  * We work it all around, but it makes the code unnecessarily complex.
  */
 
-#define SIM800_AUTOBAUD_ATTEMPTS 10
+#define SIM800_AUTOBAUD_ATTEMPTS    10
 #define SIM800_WAITACK_TIMEOUT   40
 #define SIM800_FTP_TIMEOUT       60
 #define SET_TIMEOUT              10
 #define GET_TIMEOUT              2
-#define NTP_BUF_SIZE             4
+#define NTP_BUF_SIZE                4
 
 enum sim800_socket_status {
     SIM800_SOCKET_STATUS_ERROR = -1,
@@ -478,8 +478,13 @@ static ssize_t sim800_socket_send(struct cellular *modem, int connid, const void
         return -1;
       }
       /* Request transmission. */
-      at_send_raw(modem->at, buffer, amount);
-      return amount;
+      at_set_timeout(modem->at, AT_TIMEOUT_SHORT);
+      at_expect_dataprompt(modem->at, "> ");
+      at_command_simple(modem->at, "AT+BTSPPSEND=%d,%zu", priv->spp_connid, amount);
+
+      /* Send raw data. */
+      at_set_command_scanner(modem->at, scanner_cipsend);
+      at_command_raw_simple(modem->at, buffer, amount);
     } else if(connid < SIM800_NSOCKETS) {
       if(priv->socket_status[connid] != SIM800_SOCKET_STATUS_CONNECTED) {
         return -1;
@@ -487,7 +492,7 @@ static ssize_t sim800_socket_send(struct cellular *modem, int connid, const void
       amount = amount > 1460 ? 1460 : amount;
       /* Request transmission. */
       at_set_timeout(modem->at, SET_TIMEOUT);
-      at_expect_dataprompt(modem->at);
+      at_expect_dataprompt(modem->at, "> ");
       at_command_simple(modem->at, "AT+CIPSEND=%d,%zu", connid, amount);
 
       /* Send raw data. */
@@ -523,10 +528,10 @@ static ssize_t sim800_socket_recv(struct cellular *modem, int connid, void *buff
     // FIXME: It has to be changed. Leave for now
     if(connid == SIM800_NSOCKETS) {
       if(priv->spp_status != SIM800_SOCKET_STATUS_CONNECTED) {
-        return -1;
-      }
+              return -1;
+          }
 
-      /* Copy payload to result buffer. */
+          /* Copy payload to result buffer. */
       cnt = strlen(spp_recv_buf);
       if(cnt) {
           memcpy(buffer, spp_recv_buf, cnt);
@@ -726,7 +731,7 @@ retry:
     } else {
         return -1;
     }
-}
+    }
 
 static int sim800_ftp_close(struct cellular *modem)
 {

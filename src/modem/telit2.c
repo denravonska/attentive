@@ -195,7 +195,7 @@ static ssize_t telit2_socket_send(struct cellular *modem, int connid, const void
 
     /* Request transmission. */
     at_set_timeout(modem->at, 150);
-    at_expect_dataprompt(modem->at);
+    at_expect_dataprompt(modem->at, "> ");
     at_command_simple(modem->at, "AT#SSENDEXT=%d,%zu", connid, amount);
 
     /* Send raw data. */

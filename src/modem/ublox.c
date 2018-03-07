@@ -201,7 +201,7 @@ static ssize_t ublox_socket_send(struct cellular *modem, int connid, const void 
 
     /* Request transmission. */
     at_set_timeout(modem->at, 150);
-    at_expect_dataprompt(modem->at);
+    at_expect_dataprompt(modem->at, "@");
     response = at_command(modem->at, "AT+USOWR=%d,%zu", connid, amount);
 
     /* Wait for @ prompt */
