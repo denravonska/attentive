@@ -28,7 +28,8 @@ struct at {
 
 struct at_callbacks {
     at_line_scanner_t scan_line;
-    at_response_handler_t handle_urc;
+    at_response_handler_t handle_urc;    
+    at_function_t handle_data;
 };
 
 /**

@@ -54,10 +54,12 @@ typedef enum at_response_type (*at_line_scanner_t)(const char *line, size_t len,
 /** Response handler. */
 typedef void (*at_response_handler_t)(const char *line, size_t len, void *priv);
 
+typedef void (*at_function_t)(void *priv);
+
 struct at_parser_callbacks {
     at_line_scanner_t scan_line;
     at_response_handler_t handle_response;
-    at_response_handler_t handle_urc;
+    at_response_handler_t handle_urc;    
 };
 
 /**

@@ -15,23 +15,69 @@
 
 #include "at-common.h"
 
-
+#define UBLOX_NUM_SOCKETS 8
+#define UBLOX_AUTOBAUD_ATTEMPTS 10
 #define UBLOX_WAITACK_TIMEOUT 60
 #define UBLOX_FTP_TIMEOUT 60
 #define UBLOX_LOCATE_TIMEOUT 150
 
+
 static const char *const ublox_urc_responses[] = {
-    "SRING: ",
-    "#AGPSRING: ",
+    "+UUSOCL: ",        /* Socket disconnected */
+    "+UUSORD: ",        /* Data received on socket */
+    "+UUPSDA: ",        /* PDP context activation | deactivation aborted */
+    "+UUPSDD: ",        /* PDP context closed */
+    "+CRING: ",         /* Ring */
     NULL
+};
+
+enum ublox_socket_status {
+    SOCKET_STATUS_ERROR = -1,
+    SOCKET_STATUS_UNKNOWN = 0,
+    SOCKET_STATUS_CONNECTED = 1,
+};
+
+struct ublox_socket {
+   uint16_t bytes_available;
+   enum ublox_socket_status status;
 };
 
 struct cellular_ublox {
     struct cellular dev;
-
-    int locate_status;
-    float latitude, longitude, altitude;
+    struct ublox_socket socket[UBLOX_NUM_SOCKETS];
 };
+
+static int is_valid_socket(int id) {
+   return id >= 0 && id < UBLOX_NUM_SOCKETS;
+}
+
+static char character_handler_usord(char ch, char *line, size_t len, void *arg) {
+    struct at *priv = (struct at *) arg;
+
+    int read;
+    if(ch == ',') {
+        line[len] = '\0';
+        if (sscanf(line, "+USORD: %*d,%d,", &read) == 1) {
+            at_set_character_handler(priv, NULL);
+            ch = '\n';
+        }
+    }
+
+    return ch;
+}
+
+static int scanner_usord(const char *line, size_t len, void *arg) {
+    (void) len;
+    (void) arg;
+
+    int read;
+    if (sscanf(line, "+USORD: %*d,%d", &read) == 1)
+        if (read > 0) {
+            return AT_RESPONSE_RAWDATA_FOLLOWS(read + 2);
+        }
+
+    return AT_RESPONSE_UNKNOWN;
+}
 
 static enum at_response_type scan_line(const char *line, size_t len, void *arg) {
     (void) line;
@@ -49,11 +95,30 @@ static enum at_response_type scan_line(const char *line, size_t len, void *arg) 
 static void handle_urc(const char *line, size_t len, void *arg) {
     struct cellular_ublox *priv = arg;
 
+    /*{
     int status;
     if (sscanf(line, "#AGPSRING: %d", &status) == 1) {
         priv->locate_status = status;
         sscanf(line, "#AGPSRING: %*d,%f,%f,%f", &priv->latitude, &priv->longitude, &priv->altitude);
         return;
+    }
+    }*/
+
+    // Socket events
+    int connid = -1;
+
+    // Socket data available
+    int length = 0;
+    if(sscanf(line, "+UUSORD: %d,%d", &connid, &length) == 2 && is_valid_socket(connid)) {
+       priv->socket[connid].bytes_available = length;
+       return;
+    }
+
+    // Socket close
+    if(sscanf(line, "UUSOCL: %d", &connid) == 1 && is_valid_socket(connid)) {
+       // TODO Callback
+       priv->socket[connid].status = SOCKET_STATUS_UNKNOWN;
+       return;
     }
 
     printf("[ublox@%p] urc: %.*s\n", priv, (int) len, line);
@@ -67,16 +132,34 @@ static const struct at_callbacks ublox_callbacks = {
 static int ublox_attach(struct cellular *modem)
 {
     at_set_callbacks(modem->at, &ublox_callbacks, (void *) modem);
+    at_set_timeout(modem->at, 1);
 
-    at_set_timeout(modem->at, 2);
-    at_command(modem->at, "AT");        /* Aid autobauding. Always a good idea. */
-    at_command(modem->at, "ATE0");      /* Disable local echo. */
+    /* Perform autobauding. */
+    for (int i=0; i<UBLOX_AUTOBAUD_ATTEMPTS; i++)
+    {
+        const char *response = at_command(modem->at, "AT");
+        if (response != NULL)
+        {
+            // Modem replied.
+            break;
+        }
+    }
+
+    // Disable local echo.
+    at_command(modem->at, "ATE0");
+
+    // Disable local echo again; make sure it was disabled successfully.
+    at_command_simple(modem->at, "ATE0");
 
     /* Initialize modem. */
     static const char *const init_strings[] = {
+//        "AT+IPR=0",                   /* Enable autobauding if not already enabled. */
+        //"AT+IFC=0,0",                   /* Disable hardware flow control. */
         "AT+CMEE=2",                    /* Enable extended error reporting. */
+        "AT&W0",                        /* Save configuration. */
         NULL
     };
+
     for (const char *const *command=init_strings; *command; command++)
         at_command_simple(modem->at, "%s", *command);
 
@@ -91,20 +174,37 @@ static int ublox_detach(struct cellular *modem)
 
 static int ublox_pdp_open(struct cellular *modem, const char *apn)
 {
-    at_set_timeout(modem->at, 5);
-    at_command_simple(modem->at, "AT+CGDCONT=1,IP,\"%s\"", apn);
+    /*at_set_timeout(modem->at, 5);
+    at_command_simple(modem->at, "AT+CGDCONT=1,\"IP\",\"%s\"", apn);
 
-    at_set_timeout(modem->at, 150);
-    const char *response = at_command(modem->at, "AT#SGACT=1,1");
+    at_set_timeout(modem->at, 15);
+    const char *response = at_command(modem->at, "AT+CGACT=1,1");
 
     if (response == NULL)
         return -1;
 
+    if (strstr(response, "ERROR"))
+    {
     if (!strcmp(response, "+CME ERROR: context already activated"))
         return 0;
 
-    int ip[4];
-    at_simple_scanf(response, "#SGACT: %d.%d.%d.%d", &ip[0], &ip[1], &ip[2], &ip[3]);
+       // Unrecoverable error.
+       return -1;
+    }*/
+
+    // Setup packet switched data configuration for context 1.
+    at_command_simple(modem->at, "AT+UPSD=0,1,\"%s\"", apn);
+    at_command_simple(modem->at, "AT+UPSD=0,0,0");
+
+    // Set up dynamic IP address assignment.
+    //at_command_simple(modem->at, "AT+UPSD=0,7,\"0.0.0.0\"");
+
+    // Set up the authentication protocol
+    //at_command_simple(modem->at, "AT+UPSD=0,6,0");
+
+    // Activate connection.
+    at_set_timeout(modem->at, 15);
+    at_command_simple(modem->at, "AT+UPSDA=0,3");
 
     return 0;
 }
@@ -182,66 +282,99 @@ static int ublox_socket_create(struct cellular *modem, enum socket_type type)
         return -1;
 
     int socket_id = -1;
-    at_simple_scanf(response, "+USOCR: %d", &socket_id);
+    if(sscanf(response, "+USOCR: %d", &socket_id))
+    {
+       // Enable keepalive
+       at_command_simple(modem->at, "AT+USOSO=%d,65535,8,1", socket_id);
+
+       // Enable nodelay
+       //if(type == TCP_SOCKET)
+//         at_command_simple(modem->at, "AT+USOSO=%d,6,1,1", socket_id);
+    }
+
+
+
+
     return socket_id;
 }
 
 static int ublox_socket_connect(struct cellular *modem, int connid, const char *host, uint16_t port)
 {
+   struct cellular_ublox *priv = (struct cellular_ublox*) modem;
+
+   if(!is_valid_socket(connid))
+       return -1;
+
     /* Reset socket configuration to default. */
     at_set_timeout(modem->at, 5);
     at_command_simple(modem->at, "AT+USOCO=%d,\"%s\",%d", connid, host, port);
+    priv->socket[connid].status = SOCKET_STATUS_CONNECTED;
+
     return 0;
 }
 
 static ssize_t ublox_socket_send(struct cellular *modem, int connid, const void *buffer, size_t amount, int flags)
 {
     (void) flags;
-    const char *response;
 
     /* Request transmission. */
-    at_set_timeout(modem->at, 150);
+    at_set_timeout(modem->at, 5);
     at_expect_dataprompt(modem->at, "@");
-    response = at_command(modem->at, "AT+USOWR=%d,%zu", connid, amount);
-
-    /* Wait for @ prompt */
-    if(response == NULL || response[0] != '@')
-        return 0;
+    at_command_simple(modem->at, "AT+USOWR=%d,%d", connid, (uint32_t) amount);
 
     /* Send raw data. */
-    response = at_command_raw(modem->at, buffer, amount);
-
+    const char* response = at_command_raw(modem->at, buffer, amount);
     int bytes_written = 0;
-    at_simple_scanf(response, "+USOWR: %*d,%d", &bytes_written);
+    if(response == NULL || sscanf(response, "+USOWR: %*d,%d", &bytes_written) != 1)
+       return -1;
 
     return bytes_written;
 }
 
-static ssize_t ublox_socket_recv(struct cellular *modem, int connid, void *buffer, size_t length, int flags)
-{
-    (void) flags;
+static ssize_t ublox_socket_recv(struct cellular *modem, int connid, void *buffer, size_t length, int flags) {
+   (void) flags;
 
-    at_set_timeout(modem->at, 150);
-    const char *response = at_command(modem->at, "AT+USORD=%d,%zu", connid, length);
-    if(response == NULL)
-        return 0;
+   if(length <= 0)
+      return 0;
 
-    int cnt;
-    at_simple_scanf(response, "+USORD: %*d,%d", &cnt);
+   if(!is_valid_socket(connid))
+       return -1;
+
+    struct cellular_ublox *priv = (struct cellular_ublox*) modem;
+    if(priv->socket[connid].status != SOCKET_STATUS_CONNECTED)
+       return -2;
+
+    // Ensure that data is available.
+    if(priv->socket[connid].bytes_available <= 0)
+       return 0;
+
+    at_set_timeout(modem->at, 5);
+    at_set_character_handler(modem->at, character_handler_usord);
+    at_set_command_scanner(modem->at, scanner_usord);
+    const char *response = at_command(modem->at, "AT+USORD=%d,%d", connid, (uint32_t) length);
+    unsigned int cnt;
+    if(response == NULL || sscanf(response, "+USORD: %*d,%d", &cnt) != 1)
+       return -3;
+
+    length = cnt < length ? cnt : length;
     if(cnt <= 0)
-        return 0;
+        return -1;
 
+    // Locate payload in data.
+    // +USORD: 0,95,"<data>"
     const char* data = strchr(response, '"');
     if(data == NULL)
-        return 0;
+       return -4;
 
-    memcpy((char *)buffer, data, cnt);
-    return cnt;
+    memcpy((char *)buffer, data + 1, length);
+    priv->socket[connid].bytes_available -= length;
+
+    return length;
 }
 
 static int ublox_socket_close(struct cellular *modem, int connid)
 {
-    at_set_timeout(modem->at, 150);
+    at_set_timeout(modem->at, 15);
     at_command_simple(modem->at, "AT+USOCL=%d", connid);
 
     return 0;
@@ -342,7 +475,7 @@ retry:
 
 static int ublox_locate(struct cellular *modem, float *latitude, float *longitude, float *altitude)
 {
-    struct cellular_ublox *priv = (struct cellular_ublox *) modem;
+  /*  struct cellular_ublox *priv = (struct cellular_ublox *) modem;
 
     priv->locate_status = -1;
     at_set_timeout(modem->at, 150);
@@ -363,7 +496,8 @@ static int ublox_locate(struct cellular *modem, float *latitude, float *longitud
     }
 
     errno = ETIMEDOUT;
-    return -1;
+    return -1;*/
+    return 0;
 }
 
 static int ublox_ftp_close(struct cellular *modem)
@@ -406,10 +540,9 @@ struct cellular *cellular_ublox_alloc(void)
         errno = ENOMEM;
         return NULL;
     }
+
     memset(modem, 0, sizeof(*modem));
-
     modem->dev.ops = &ublox_ops;
-
     return (struct cellular *) modem;
 }
 
