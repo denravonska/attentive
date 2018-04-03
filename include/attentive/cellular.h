@@ -81,6 +81,7 @@ struct cellular_ops {
     ssize_t (*socket_recv)(struct cellular *modem, int connid, void *buffer, size_t length, int flags);
     int (*socket_waitack)(struct cellular *modem, int connid);
     int (*socket_close)(struct cellular *modem, int connid);
+    int (*socket_available)(struct cellular *modem, int connid);
 
     int (*ftp_open)(struct cellular *modem, const char *host, uint16_t port, const char *username, const char *password, bool passive);
     int (*ftp_get)(struct cellular *modem, const char *filename);

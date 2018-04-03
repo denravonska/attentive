@@ -174,6 +174,7 @@ static int ublox_detach(struct cellular *modem)
 
 static int ublox_pdp_open(struct cellular *modem, const char *apn)
 {
+    modem->apn = apn;
     /*at_set_timeout(modem->at, 5);
     at_command_simple(modem->at, "AT+CGDCONT=1,\"IP\",\"%s\"", apn);
 
@@ -352,12 +353,11 @@ static ssize_t ublox_socket_recv(struct cellular *modem, int connid, void *buffe
     at_set_character_handler(modem->at, character_handler_usord);
     at_set_command_scanner(modem->at, scanner_usord);
     const char *response = at_command(modem->at, "AT+USORD=%d,%d", connid, (uint32_t) length);
-    unsigned int cnt;
-    if(response == NULL || sscanf(response, "+USORD: %*d,%d", &cnt) != 1)
+    unsigned int bytes_read;
+    if(response == NULL || sscanf(response, "+USORD: %*d,%d", &bytes_read) != 1)
        return -3;
 
-    length = cnt < length ? cnt : length;
-    if(cnt <= 0)
+    if(bytes_read <= 0)
         return -1;
 
     // Locate payload in data.
@@ -366,10 +366,10 @@ static ssize_t ublox_socket_recv(struct cellular *modem, int connid, void *buffe
     if(data == NULL)
        return -4;
 
-    memcpy((char *)buffer, data + 1, length);
-    priv->socket[connid].bytes_available -= length;
+    memcpy((char *)buffer, data + 1, bytes_read);
+    priv->socket[connid].bytes_available -= bytes_read;
 
-    return length;
+    return bytes_read;
 }
 
 static int ublox_socket_close(struct cellular *modem, int connid)
@@ -380,10 +380,18 @@ static int ublox_socket_close(struct cellular *modem, int connid)
     return 0;
 }
 
+static int ublox_socket_available(struct cellular *modem, int connid)
+{
+    if(!is_valid_socket(connid))
+        return -1;
+
+    struct cellular_ublox *priv = (struct cellular_ublox*) modem;
+    return priv->socket[connid].bytes_available;
+}
+
 static int ublox_ftp_open(struct cellular *modem, const char *host, uint16_t port, const char *username, const char *password, bool passive)
 {
-    cellular_command_simple_pdp(modem, "AT#FTPOPEN=%s:%d,%s,%s,%d", host, port, username, password, passive);
-
+    //cellular_command_simple_pdp(modem, "AT#FTPOPEN=%s:%d,%s,%s,%d", host, port, username, password, passive);
     return 0;
 }
 
@@ -526,6 +534,7 @@ static const struct cellular_ops ublox_ops = {
     .socket_send = ublox_socket_send,
     .socket_recv = ublox_socket_recv,
     .socket_close = ublox_socket_close,
+    .socket_available = ublox_socket_available,
     .ftp_open = ublox_ftp_open,
     .ftp_get = ublox_ftp_get,
     .ftp_getdata = ublox_ftp_getdata,
