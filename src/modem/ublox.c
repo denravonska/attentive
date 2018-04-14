@@ -362,6 +362,9 @@ static ssize_t ublox_socket_recv(struct cellular *modem, int connid, void *buffe
     at_set_timeout(modem->at, 5);
     at_set_character_handler(modem->at, character_handler_usord);
     at_set_command_scanner(modem->at, scanner_usord);
+    
+    priv->socket[connid].bytes_available = 0;
+    
     const char *response = at_command(modem->at, "AT+USORD=%d,%d", connid, (uint32_t) length);
     unsigned int bytes_read;
     if(response == NULL || sscanf(response, "+USORD: %*d,%d", &bytes_read) != 1)
@@ -377,7 +380,6 @@ static ssize_t ublox_socket_recv(struct cellular *modem, int connid, void *buffe
        return -4;
 
     memcpy((char *)buffer, data + 1, bytes_read);
-    priv->socket[connid].bytes_available -= bytes_read;
 
     return bytes_read;
 }
