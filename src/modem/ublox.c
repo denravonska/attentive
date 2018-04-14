@@ -193,6 +193,16 @@ static int ublox_pdp_open(struct cellular *modem, const char *apn)
        return -1;
     }*/
 
+    // Check if already attached
+    const char* response = at_command(modem->at, "AT+UPSND=0,8");
+    if(response)
+    {
+        int status = 0;
+        at_simple_scanf(response, "+UPSND: 0,8,%d", &status);
+        if(status == 1)
+            return 0;
+    }
+
     // Setup packet switched data configuration for context 1.
     at_command_simple(modem->at, "AT+UPSD=0,1,\"%s\"", apn);
     at_command_simple(modem->at, "AT+UPSD=0,0,0");
