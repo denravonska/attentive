@@ -355,15 +355,9 @@ static ssize_t ublox_socket_recv(struct cellular *modem, int connid, void *buffe
     if(priv->socket[connid].status != SOCKET_STATUS_CONNECTED)
        return -2;
 
-    // Ensure that data is available.
-    if(priv->socket[connid].bytes_available <= 0)
-       return 0;
-
     at_set_timeout(modem->at, 5);
     at_set_character_handler(modem->at, character_handler_usord);
     at_set_command_scanner(modem->at, scanner_usord);
-    
-    priv->socket[connid].bytes_available = 0;
     
     const char *response = at_command(modem->at, "AT+USORD=%d,%d", connid, (uint32_t) length);
     unsigned int bytes_read;
@@ -380,6 +374,10 @@ static ssize_t ublox_socket_recv(struct cellular *modem, int connid, void *buffe
        return -4;
 
     memcpy((char *)buffer, data + 1, bytes_read);
+
+    priv->socket[connid].bytes_available = 0;
+    if(priv->socket[connid].bytes_available < 0)
+        priv->socket[connid].bytes_available] = 0;
 
     return bytes_read;
 }
