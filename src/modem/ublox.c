@@ -371,7 +371,7 @@ static ssize_t ublox_socket_recv(struct cellular *modem, int connid, void *buffe
        return -3;
 
     if(bytes_read <= 0)
-        return -1;
+        return bytes_read;
 
     // Locate payload in data.
     // +USORD: 0,95,"<data>"
