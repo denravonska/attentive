@@ -38,7 +38,7 @@ enum ublox_socket_status {
 };
 
 struct ublox_socket {
-   uint16_t bytes_available;
+   int16_t bytes_available;
    enum ublox_socket_status status;
 };
 
@@ -374,10 +374,7 @@ static ssize_t ublox_socket_recv(struct cellular *modem, int connid, void *buffe
        return -4;
 
     memcpy((char *)buffer, data + 1, bytes_read);
-
-    priv->socket[connid].bytes_available = 0;
-    if(priv->socket[connid].bytes_available < 0)
-        priv->socket[connid].bytes_available] = 0;
+    priv->socket[connid].bytes_available -= bytes_read;
 
     return bytes_read;
 }
