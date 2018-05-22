@@ -7,6 +7,7 @@
  */
 
 #include <attentive/cellular.h>
+#include "cellular_priv.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -31,15 +32,9 @@ static const char *const ublox_urc_responses[] = {
     NULL
 };
 
-enum ublox_socket_status {
-    SOCKET_STATUS_ERROR = -1,
-    SOCKET_STATUS_UNKNOWN = 0,
-    SOCKET_STATUS_CONNECTED = 1,
-};
-
 struct ublox_socket {
    int16_t bytes_available;
-   enum ublox_socket_status status;
+   enum socket_status status;
 };
 
 struct cellular_ublox {
@@ -116,8 +111,8 @@ static void handle_urc(const char *line, size_t len, void *arg) {
 
     // Socket close
     if(sscanf(line, "UUSOCL: %d", &connid) == 1 && is_valid_socket(connid)) {
-       // TODO Callback
        priv->socket[connid].status = SOCKET_STATUS_UNKNOWN;
+       cellular_notify_socket_status(&priv->dev, connid, priv->socket[connid].status);
        return;
     }
 
@@ -303,9 +298,6 @@ static int ublox_socket_create(struct cellular *modem, enum socket_type type)
 //         at_command_simple(modem->at, "AT+USOSO=%d,6,1,1", socket_id);
     }
 
-
-
-
     return socket_id;
 }
 
@@ -320,6 +312,7 @@ static int ublox_socket_connect(struct cellular *modem, int connid, const char *
     at_set_timeout(modem->at, 5);
     at_command_simple(modem->at, "AT+USOCO=%d,\"%s\",%d", connid, host, port);
     priv->socket[connid].status = SOCKET_STATUS_CONNECTED;
+    cellular_notify_socket_status(modem, connid, priv->socket[connid].status);
 
     return 0;
 }
@@ -381,8 +374,15 @@ static ssize_t ublox_socket_recv(struct cellular *modem, int connid, void *buffe
 
 static int ublox_socket_close(struct cellular *modem, int connid)
 {
+    if(!is_valid_socket(connid))
+        return -1;
+
+    struct cellular_ublox *priv = (struct cellular_ublox*) modem;
+    priv->socket[connid].status = SOCKET_STATUS_UNKNOWN;
     at_set_timeout(modem->at, 15);
     at_command_simple(modem->at, "AT+USOCL=%d", connid);
+
+    // Let UUSOCL URC trigger the callback.
 
     return 0;
 }
@@ -390,10 +390,21 @@ static int ublox_socket_close(struct cellular *modem, int connid)
 static int ublox_socket_available(struct cellular *modem, int connid)
 {
     if(!is_valid_socket(connid))
-        return -1;
+        return -1;    
 
     struct cellular_ublox *priv = (struct cellular_ublox*) modem;
-    return priv->socket[connid].bytes_available;
+    return priv->socket[connid].status == SOCKET_STATUS_CONNECTED
+          ? priv->socket[connid].bytes_available
+          : -1;
+}
+
+static int ublox_socket_status(struct cellular *modem, int connid)
+{
+   if(!is_valid_socket(connid))
+       return SOCKET_STATUS_ERROR;
+
+   struct cellular_ublox *priv = (struct cellular_ublox*) modem;
+   return priv->socket[connid].status;
 }
 
 static int ublox_ftp_open(struct cellular *modem, const char *host, uint16_t port, const char *username, const char *password, bool passive)
@@ -542,6 +553,7 @@ static const struct cellular_ops ublox_ops = {
     .socket_recv = ublox_socket_recv,
     .socket_close = ublox_socket_close,
     .socket_available = ublox_socket_available,
+    .socket_status = ublox_socket_status,
     .ftp_open = ublox_ftp_open,
     .ftp_get = ublox_ftp_get,
     .ftp_getdata = ublox_ftp_getdata,

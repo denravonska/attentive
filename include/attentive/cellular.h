@@ -40,9 +40,17 @@ enum socket_type {
     UDP_SOCKET
 };
 
+enum socket_status {
+    SOCKET_STATUS_ERROR = -1,
+    SOCKET_STATUS_UNKNOWN = 0,
+    SOCKET_STATUS_CONNECTED = 1,
+};
+
 struct cellular {
     const struct cellular_ops *ops;
+    const struct cellular_callbacks *cbs;
     struct at *at;
+    void *arg;
 
     /* Private fields. */
     const char *apn;
@@ -82,6 +90,7 @@ struct cellular_ops {
     int (*socket_waitack)(struct cellular *modem, int connid);
     int (*socket_close)(struct cellular *modem, int connid);
     int (*socket_available)(struct cellular *modem, int connid);
+    int (*socket_status)(struct cellular *modem, int connid);
 
     int (*ftp_open)(struct cellular *modem, const char *host, uint16_t port, const char *username, const char *password, bool passive);
     int (*ftp_get)(struct cellular *modem, const char *filename);
@@ -91,6 +100,11 @@ struct cellular_ops {
     int (*locate)(struct cellular *modem, float *latitude, float *longitude, float *altitude);
 };
 
+typedef void (*socket_status_handler_t)(int connid, enum socket_status status, void *arg);
+
+struct cellular_callbacks {
+    socket_status_handler_t socket_status_handler;
+};
 
 /**
  * Allocate a cellular modem instance.
@@ -127,6 +141,14 @@ int cellular_detach(struct cellular *modem);
  */
 void cellular_free(struct cellular *modem);
 
+/**
+ * @brief Assign cellular callbacks.
+ *
+ * @param modem Cellular modem instance.
+ * @param cbs Callback table.
+ * @param arg Data pointer to send to callbacks.
+ */
+void cellular_set_callbacks(struct cellular *modem, const struct cellular_callbacks *cbs, void* arg);
 
 /* Modem-specific variants below. */
 

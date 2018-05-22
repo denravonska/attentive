@@ -38,4 +38,10 @@ int cellular_detach(struct cellular *modem)
     return result;
 }
 
+void cellular_set_callbacks(struct cellular *modem, const struct cellular_callbacks *cbs, void* arg)
+{
+    modem->cbs = cbs;
+    modem->arg = arg;
+}
+
 /* vim: set ts=4 sw=4 et: */
