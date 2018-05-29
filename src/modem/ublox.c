@@ -321,6 +321,16 @@ static ssize_t ublox_socket_send(struct cellular *modem, int connid, const void 
 {
     (void) flags;
 
+   if(!is_valid_socket(connid))
+       return SOCKET_NOT_VALID;
+
+    struct cellular_ublox *priv = (struct cellular_ublox*) modem;
+    if(priv->socket[connid].status != SOCKET_STATUS_CONNECTED)
+       return SOCKET_NOT_CONNECTED;
+   
+    if(amount <= 0)
+       return 0;
+    
     /* Request transmission. */
     at_set_timeout(modem->at, 5);
     at_expect_dataprompt(modem->at, "@");
@@ -338,16 +348,16 @@ static ssize_t ublox_socket_send(struct cellular *modem, int connid, const void 
 static ssize_t ublox_socket_recv(struct cellular *modem, int connid, void *buffer, size_t length, int flags) {
    (void) flags;
 
-   if(length <= 0)
-      return 0;
-
    if(!is_valid_socket(connid))
-       return -1;
+       return SOCKET_NOT_VALID;
 
     struct cellular_ublox *priv = (struct cellular_ublox*) modem;
     if(priv->socket[connid].status != SOCKET_STATUS_CONNECTED)
-       return -2;
+       return SOCKET_NOT_CONNECTED;
 
+    if(length <= 0)
+       return 0;
+    
     at_set_timeout(modem->at, 5);
     at_set_character_handler(modem->at, character_handler_usord);
     at_set_command_scanner(modem->at, scanner_usord);

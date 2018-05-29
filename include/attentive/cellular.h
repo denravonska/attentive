@@ -46,6 +46,11 @@ enum socket_status {
     SOCKET_STATUS_CONNECTED = 1,
 };
 
+enum socket_error {
+   SOCKET_NOT_VALID     = -1,
+   SOCKET_NOT_CONNECTED = -2
+};
+
 struct cellular {
     const struct cellular_ops *ops;
     const struct cellular_callbacks *cbs;
