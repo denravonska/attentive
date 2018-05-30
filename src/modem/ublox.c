@@ -116,7 +116,7 @@ static void handle_urc(const char *line, size_t len, void *arg) {
        return;
     }
 
-    printf("[ublox@%p] urc: %.*s\n", priv, (int) len, line);
+    //printf("[ublox@%p] urc: %.*s\n", priv, (int) len, line);
 }
 
 static const struct at_callbacks ublox_callbacks = {
