@@ -48,7 +48,8 @@ enum socket_status {
 
 enum socket_error {
    SOCKET_NOT_VALID     = -1,
-   SOCKET_NOT_CONNECTED = -2
+   SOCKET_NOT_CONNECTED = -2,
+   SOCKET_ERROR         = -3
 };
 
 struct cellular {
