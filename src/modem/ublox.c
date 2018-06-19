@@ -21,6 +21,7 @@
 #define UBLOX_WAITACK_TIMEOUT 60
 #define UBLOX_FTP_TIMEOUT 60
 #define UBLOX_LOCATE_TIMEOUT 150
+#define UBLOX_USOCO_TIMEOUT 20
 
 
 static const char *const ublox_urc_responses[] = {
@@ -308,8 +309,7 @@ static int ublox_socket_connect(struct cellular *modem, int connid, const char *
    if(!is_valid_socket(connid))
        return -1;
 
-    /* Reset socket configuration to default. */
-    at_set_timeout(modem->at, 5);
+    at_set_timeout(modem->at, UBLOX_USOCO_TIMEOUT);
     at_command_simple(modem->at, "AT+USOCO=%d,\"%s\",%d", connid, host, port);
     priv->socket[connid].status = SOCKET_STATUS_CONNECTED;
     cellular_notify_socket_status(modem, connid, priv->socket[connid].status);
