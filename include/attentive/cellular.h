@@ -107,9 +107,11 @@ struct cellular_ops {
 };
 
 typedef void (*socket_status_handler_t)(int connid, enum socket_status status, void *arg);
+typedef void (*pdp_deactivate_handler_t)(int profile, void* arg);
 
 struct cellular_callbacks {
-    socket_status_handler_t socket_status_handler;
+    socket_status_handler_t  socket_status_handler;
+    pdp_deactivate_handler_t pdp_deactivate_handler;
 };
 
 /**

@@ -23,6 +23,7 @@
 #define UBLOX_LOCATE_TIMEOUT 150
 #define UBLOX_USOCO_TIMEOUT 20
 
+static int ublox_socket_close(struct cellular *modem, int connid);
 
 static const char *const ublox_urc_responses[] = {
     "+UUSOCL: ",        /* Socket disconnected */
@@ -115,6 +116,18 @@ static void handle_urc(const char *line, size_t len, void *arg) {
        priv->socket[connid].status = SOCKET_STATUS_UNKNOWN;
        cellular_notify_socket_status(&priv->dev, connid, priv->socket[connid].status);
        return;
+    }
+    
+    // PDP context close
+    int context = -1;
+    if(sscanf(line, "UUPSDD: %d", &context) == 1) {
+       if(priv->dev.cbs->pdp_deactivate_handler)
+          priv->dev.cbs->pdp_deactivate_handler(context, priv->dev.arg);
+       
+       // Manual states that sockets are now invalid and must be closed.
+       for(int i=0; i<UBLOX_NUM_SOCKETS; ++i)          
+          if(priv->socket[i].status == SOCKET_STATUS_CONNECTED)
+             ublox_socket_close(&priv->dev, i);
     }
 
     //printf("[ublox@%p] urc: %.*s\n", priv, (int) len, line);
