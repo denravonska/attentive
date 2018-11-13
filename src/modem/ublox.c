@@ -325,6 +325,7 @@ static int ublox_socket_connect(struct cellular *modem, int connid, const char *
     at_set_timeout(modem->at, UBLOX_USOCO_TIMEOUT);
     at_command_simple(modem->at, "AT+USOCO=%d,\"%s\",%d", connid, host, port);
     priv->socket[connid].status = SOCKET_STATUS_CONNECTED;
+    priv->socket[connid].bytes_available = 0;
     cellular_notify_socket_status(modem, connid, priv->socket[connid].status);
 
     return 0;
