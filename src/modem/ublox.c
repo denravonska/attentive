@@ -399,9 +399,12 @@ static ssize_t ublox_socket_recv(struct cellular *modem, int connid, void *buffe
 static int ublox_socket_close(struct cellular *modem, int connid)
 {
     if(!is_valid_socket(connid))
-        return -1;
+        return -1;    
 
     struct cellular_ublox *priv = (struct cellular_ublox*) modem;
+    if(priv->socket[connid].status == SOCKET_STATUS_UNKNOWN)
+       return 0;
+
     priv->socket[connid].status = SOCKET_STATUS_UNKNOWN;
     at_set_timeout(modem->at, 15);
     at_command_simple(modem->at, "AT+USOCL=%d", connid);
