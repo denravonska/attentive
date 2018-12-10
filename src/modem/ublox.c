@@ -112,7 +112,7 @@ static void handle_urc(const char *line, size_t len, void *arg) {
     }
 
     // Socket close
-    if(sscanf(line, "UUSOCL: %d", &connid) == 1 && is_valid_socket(connid)) {
+    if(sscanf(line, "+UUSOCL: %d", &connid) == 1 && is_valid_socket(connid)) {
        priv->socket[connid].status = SOCKET_STATUS_UNKNOWN;
        cellular_notify_socket_status(&priv->dev, connid, priv->socket[connid].status);
        return;
@@ -120,7 +120,7 @@ static void handle_urc(const char *line, size_t len, void *arg) {
     
     // PDP context close
     int context = -1;
-    if(sscanf(line, "UUPSDD: %d", &context) == 1) {
+    if(sscanf(line, "+UUPSDD: %d", &context) == 1) {
        if(priv->dev.cbs->pdp_deactivate_handler)
           priv->dev.cbs->pdp_deactivate_handler(context, priv->dev.arg);
        
