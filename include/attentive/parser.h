@@ -132,6 +132,14 @@ void at_parser_free(struct at_parser *parser);
  */
 bool at_prefix_in_table(const char *line, const char *const table[]);
 
+/**
+ * Convert hexadecimal character to integer.
+ *
+ * @param c Character to convert.
+ * @returns Integer value of @p c if valid hex, else -1.
+ */
+int hex2int(char c);
+
 #ifdef __cplusplus
 }
 #endif

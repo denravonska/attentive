@@ -250,7 +250,7 @@ static void parser_handle_line(struct at_parser *parser)
     }
 }
 
-static int hex2int(char c)
+int hex2int(char c)
 {
     if (c >= '0' && c <= '9')
         return c - '0';
