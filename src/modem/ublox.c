@@ -308,8 +308,8 @@ static int ublox_socket_create(struct cellular *modem, enum socket_type type)
        at_command_simple(modem->at, "AT+USOSO=%d,65535,8,1", socket_id);
 
        // Enable nodelay
-       //if(type == TCP_SOCKET)
-//         at_command_simple(modem->at, "AT+USOSO=%d,6,1,1", socket_id);
+       if(type == TCP_SOCKET)
+          at_command_simple(modem->at, "AT+USOSO=%d,6,1,1", socket_id);
     }
 
     return socket_id;
