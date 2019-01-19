@@ -140,6 +140,11 @@ __attribute__ ((format (printf, 2, 3)))
 bool at_send(struct at *at, const char *format, ...);
 
 /**
+ * Flush AT engine I/O channel and force any buffered data to be written.
+ */
+void at_flush(void);
+
+/**
  * Send raw data over the AT channel.
  *
  * @param at AT channel instance.
