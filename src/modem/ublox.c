@@ -7,6 +7,7 @@
  */
 
 #include <attentive/cellular.h>
+#include <attentive/parser.h>
 #include "cellular_priv.h"
 
 #include <stdio.h>
@@ -70,7 +71,7 @@ static int scanner_usord(const char *line, size_t len, void *arg) {
     int read;
     if (sscanf(line, "+USORD: %*d,%d", &read) == 1)
         if (read > 0) {
-            return AT_RESPONSE_RAWDATA_FOLLOWS(read + 2);
+            return AT_RESPONSE_HEXDATA_FOLLOWS(read);
         }
 
     return AT_RESPONSE_UNKNOWN;
@@ -166,6 +167,7 @@ static int ublox_attach(struct cellular *modem)
         //"AT+IFC=0,0",                   /* Disable hardware flow control. */
         "AT+CMEE=2",                    /* Enable extended error reporting. */
         "AT&W0",                        /* Save configuration. */
+        "AT+UDCONF=1,1",
         NULL
     };
 
@@ -341,22 +343,33 @@ static ssize_t ublox_socket_send(struct cellular *modem, int connid, const void 
     struct cellular_ublox *priv = (struct cellular_ublox*) modem;
     if(priv->socket[connid].status != SOCKET_STATUS_CONNECTED)
        return SOCKET_NOT_CONNECTED;
-   
+ 
     if(amount <= 0)
        return 0;
-    
-    /* Request transmission. */
-    at_set_timeout(modem->at, 5);
-    at_expect_dataprompt(modem->at, "@");
-    at_command_simple(modem->at, "AT+USOWR=%d,%d", connid, (uint32_t) amount);
 
     /* Send raw data. */
-    const char* response = at_command_raw(modem->at, buffer, amount);
+    char out[512];
+    char* ptr = &out[0];
+    ptr += sprintf(out, "AT+USOWR=%d,%d,\"", connid, (int32_t) amount);
+    for(size_t i=0; i<amount; ++i)
+    {
+       char hi = (((unsigned char*) buffer)[i] >> 4) & 0x0f;
+       char lo = (((unsigned char*) buffer)[i] & 0x0f);
+       *ptr++ = hi > 9 ? 'A' + hi - 10 : '0' + hi;
+       *ptr++ = lo > 9 ? 'A' + lo - 10 : '0' + lo;
+    }
+
+    *ptr++ = '\"';
+    *ptr++ = '\r';
+    *ptr = 0;
+
+    at_set_timeout(modem->at, 5);
+    const char* response = at_command_raw(priv->dev.at, out, ptr - out);
     int bytes_written = 0;
     if(response == NULL || sscanf(response, "+USOWR: %*d,%d", &bytes_written) != 1)
        return SOCKET_ERROR;
 
-    return bytes_written;
+    return amount;
 }
 
 static ssize_t ublox_socket_recv(struct cellular *modem, int connid, void *buffer, size_t length, int flags) {
@@ -385,11 +398,12 @@ static ssize_t ublox_socket_recv(struct cellular *modem, int connid, void *buffe
         return bytes_read;
 
     // Locate payload in data.
-    // +USORD: 0,95,"<data>"
-    const char* data = strchr(response, '"');
+    // +USORD: 0,95\n<data>
+    const char* data = strchr(response, '\n');
     if(data == NULL)
        return -4;
 
+    // UDCONF=1,1 seems to not affect USORD so the data is raw.
     memcpy((char *)buffer, data + 1, bytes_read);
     priv->socket[connid].bytes_available -= bytes_read;
 
