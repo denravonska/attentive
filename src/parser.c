@@ -261,6 +261,14 @@ int hex2int(char c)
     return -1;
 }
 
+void char2hex(char c, char out[2])
+{
+   char hi = (c >> 4) & 0x0F;
+   char lo =  c       & 0x0F;
+   out[0] = hi > 9 ? 'A' + hi - 10 : '0' + hi;
+   out[1] = lo > 9 ? 'A' + lo - 10 : '0' + lo;
+}
+
 void at_parser_feed(struct at_parser *parser, const void *data, size_t len)
 {
     const uint8_t *buf = data;

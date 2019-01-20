@@ -140,6 +140,14 @@ bool at_prefix_in_table(const char *line, const char *const table[]);
  */
 int hex2int(char c);
 
+/**
+ * Convert character to hexadecimal.
+ *
+ * @param c Character to convert.
+ * @param out Output hex.
+ */
+void char2hex(char c, char out[2]);
+
 #ifdef __cplusplus
 }
 #endif
