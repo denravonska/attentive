@@ -23,6 +23,7 @@
 #define UBLOX_FTP_TIMEOUT 60
 #define UBLOX_LOCATE_TIMEOUT 150
 #define UBLOX_USOCO_TIMEOUT 20
+#define UBLOX_MAX_SOCKET_WRITE 500
 
 static int ublox_socket_close(struct cellular *modem, int connid);
 
@@ -93,15 +94,6 @@ static enum at_response_type scan_line(const char *line, size_t len, void *arg) 
 static void handle_urc(const char *line, size_t len, void *arg) {
     struct cellular_ublox *priv = arg;
 
-    /*{
-    int status;
-    if (sscanf(line, "#AGPSRING: %d", &status) == 1) {
-        priv->locate_status = status;
-        sscanf(line, "#AGPSRING: %*d,%f,%f,%f", &priv->latitude, &priv->longitude, &priv->altitude);
-        return;
-    }
-    }*/
-
     // Socket events
     int connid = -1;
 
@@ -163,11 +155,9 @@ static int ublox_attach(struct cellular *modem)
 
     /* Initialize modem. */
     static const char *const init_strings[] = {
-//        "AT+IPR=0",                   /* Enable autobauding if not already enabled. */
-        //"AT+IFC=0,0",                   /* Disable hardware flow control. */
         "AT+CMEE=2",                    /* Enable extended error reporting. */
         "AT&W0",                        /* Save configuration. */
-        "AT+UDCONF=1,1",
+        "AT+UDCONF=1,1",                /* Enable socket hexmode. */
         NULL
     };
 
@@ -186,23 +176,6 @@ static int ublox_detach(struct cellular *modem)
 static int ublox_pdp_open(struct cellular *modem, const char *apn)
 {
     modem->apn = apn;
-    /*at_set_timeout(modem->at, 5);
-    at_command_simple(modem->at, "AT+CGDCONT=1,\"IP\",\"%s\"", apn);
-
-    at_set_timeout(modem->at, 15);
-    const char *response = at_command(modem->at, "AT+CGACT=1,1");
-
-    if (response == NULL)
-        return -1;
-
-    if (strstr(response, "ERROR"))
-    {
-    if (!strcmp(response, "+CME ERROR: context already activated"))
-        return 0;
-
-       // Unrecoverable error.
-       return -1;
-    }*/
 
     // Check if already attached
     const char* response = at_command(modem->at, "AT+UPSND=0,8");
@@ -348,26 +321,39 @@ static ssize_t ublox_socket_send(struct cellular *modem, int connid, const void 
        return 0;
 
     /* Send raw data. */
-    char out[512];
-    char* ptr = &out[0];
-    ptr += sprintf(out, "AT+USOWR=%d,%d,\"", connid, (int32_t) amount);
-    for(size_t i=0; i<amount; ++i)
-    {
-       char hi = (((unsigned char*) buffer)[i] >> 4) & 0x0f;
-       char lo = (((unsigned char*) buffer)[i] & 0x0f);
-       *ptr++ = hi > 9 ? 'A' + hi - 10 : '0' + hi;
-       *ptr++ = lo > 9 ? 'A' + lo - 10 : '0' + lo;
-    }
-
-    *ptr++ = '\"';
-    *ptr++ = '\r';
-    *ptr = 0;
-
     at_set_timeout(modem->at, 5);
-    const char* response = at_command_raw(priv->dev.at, out, ptr - out);
-    int bytes_written = 0;
-    if(response == NULL || sscanf(response, "+USOWR: %*d,%d", &bytes_written) != 1)
-       return SOCKET_ERROR;
+    size_t bytes_remaining = amount;
+    const char* ptr = (const char*) buffer;
+    while(bytes_remaining > 0)
+    {
+       size_t bytes = bytes_remaining > UBLOX_MAX_SOCKET_WRITE
+                      ? UBLOX_MAX_SOCKET_WRITE
+                      : bytes_remaining;
+
+       // Send header
+       char buf[32];
+       size_t len = sprintf(buf, "AT+USOWR=%d,%d,\"", connid, (int32_t) amount);
+       at_send_raw(priv->dev.at, buf, len);
+
+       // Send data
+       for(size_t i=0; i<bytes; ++i, ++ptr)
+       {
+          char out[2];
+          char2hex(*ptr, out);
+          at_send_raw(priv->dev.at, out, sizeof(out));
+       }
+
+       at_send_raw(priv->dev.at, "\"\r", 2);
+       at_flush(priv->dev.at);
+
+       // Read response
+       const char* response = at_read_response(priv->dev.at);
+       int bytes_written = 0;
+       if(response == NULL || sscanf(response, "+USOWR: %*d,%d", &bytes_written) != 1)
+          return SOCKET_ERROR;
+
+       bytes_remaining -= bytes_written;
+    }
 
     return amount;
 }
@@ -403,7 +389,6 @@ static ssize_t ublox_socket_recv(struct cellular *modem, int connid, void *buffe
     if(data == NULL)
        return -4;
 
-    // UDCONF=1,1 seems to not affect USORD so the data is raw.
     memcpy((char *)buffer, data + 1, bytes_read);
     priv->socket[connid].bytes_available -= bytes_read;
 
