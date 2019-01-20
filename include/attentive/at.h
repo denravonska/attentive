@@ -119,6 +119,14 @@ __attribute__ ((format (printf, 2, 3)))
 const char *at_command(struct at *at, const char *format, ...);
 
 /**
+ * Read response from AT engine.
+ *
+ * @param at AT channel instance.
+ * @returns Response if any, else NULL.
+ */
+const char *at_read_response(struct at *at);
+
+/**
  * Send raw data over the AT channel.
  *
  * @param at AT channel instance.
