@@ -90,6 +90,9 @@ struct cellular_ops {
 //    int (*clock_ntptime)(struct cellular *modem, struct timespec *ts);
 
     int (*socket_create)(struct cellular *modem, enum socket_type type);
+
+    /** Enable SSL on existing socket. */
+    int (*socket_ssl)(struct cellular *modem, int connid, int profileid);
     int (*socket_connect)(struct cellular *modem, int connid, const char *host, uint16_t port);
     ssize_t (*socket_send)(struct cellular *modem, int connid, const void *buffer, size_t amount, int flags);
     ssize_t (*socket_recv)(struct cellular *modem, int connid, void *buffer, size_t length, int flags);

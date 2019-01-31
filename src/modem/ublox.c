@@ -277,28 +277,36 @@ static int ublox_socket_create(struct cellular *modem, enum socket_type type)
         return -1;
 
     int socket_id = -1;
-    if(sscanf(response, "+USOCR: %d", &socket_id))
-    {
-       // Enable keepalive
-       at_command_simple(modem->at, "AT+USOSO=%d,65535,8,1", socket_id);
+    if(sscanf(response, "+USOCR: %d", &socket_id) != 1)
+       return -1;
 
-       // Enable nodelay
-       if(type == TCP_SOCKET)
-          at_command_simple(modem->at, "AT+USOSO=%d,6,1,1", socket_id);
-    }
+    // Enable keepalive
+    at_command_simple(modem->at, "AT+USOSO=%d,65535,8,1", socket_id);
+
+    // Enable nodelay
+    if(type == TCP_SOCKET)
+       at_command_simple(modem->at, "AT+USOSO=%d,6,1,1", socket_id);
 
     return socket_id;
 }
 
-static int ublox_socket_connect(struct cellular *modem, int connid, const char *host, uint16_t port)
+static int ublox_socket_ssl(struct cellular *modem, int connid, int profileid)
 {
-   struct cellular_ublox *priv = (struct cellular_ublox*) modem;
-
    if(!is_valid_socket(connid))
        return -1;
 
+   at_command_simple(modem->at, "AT+USOSEC=%d,1,%d", connid, profileid);
+   return 0;
+}
+
+static int ublox_socket_connect(struct cellular *modem, int connid, const char *host, uint16_t port)
+{
+    if(!is_valid_socket(connid))
+        return -1;
+
     at_set_timeout(modem->at, UBLOX_USOCO_TIMEOUT);
     at_command_simple(modem->at, "AT+USOCO=%d,\"%s\",%d", connid, host, port);
+    struct cellular_ublox *priv = (struct cellular_ublox*) modem;
     priv->socket[connid].status = SOCKET_STATUS_CONNECTED;
     priv->socket[connid].bytes_available = 0;
     cellular_notify_socket_status(modem, connid, priv->socket[connid].status);
@@ -574,6 +582,7 @@ static const struct cellular_ops ublox_ops = {
     //.clock_gettime = ublox_op_clock_gettime,
     //.clock_settime = cellular_op_clock_settime,
     .socket_create = ublox_socket_create,
+    .socket_ssl = ublox_socket_ssl,
     .socket_connect = ublox_socket_connect,
     .socket_send = ublox_socket_send,
     .socket_recv = ublox_socket_recv,
