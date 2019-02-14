@@ -164,6 +164,10 @@ static int ublox_attach(struct cellular *modem)
     for (const char *const *command=init_strings; *command; command++)
         at_command_simple(modem->at, "%s", *command);
 
+    /* Disconnect lingering sockets. */
+    for (int i=1; i<=UBLOX_NUM_SOCKETS; ++i)
+        at_command(modem->at, "AT+USOCL=%d", i);
+
     return 0;
 }
 
