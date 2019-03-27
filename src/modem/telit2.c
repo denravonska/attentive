@@ -121,22 +121,6 @@ static int telit2_pdp_close(struct cellular *modem)
     return 0;
 }
 
-static int telit2_op_iccid(struct cellular *modem, char *buf, size_t len)
-{
-    char fmt[24];
-    if (snprintf(fmt, sizeof(fmt), "#CCID: %%[0-9]%ds", (int) len) >= (int) sizeof(fmt)) {
-        errno = ENOSPC;
-        return -1;
-    }
-
-    at_set_timeout(modem->at, 5);
-    const char *response = at_command(modem->at, "AT#CCID");
-    at_simple_scanf(response, fmt, buf);
-    buf[len-1] = '\0';
-
-    return 0;
-}
-
 //static int telit2_op_clock_gettime(struct cellular *modem, struct timespec *ts)
 //{
 //    struct tm tm;
@@ -433,7 +417,7 @@ static const struct cellular_ops telit2_ops = {
     .pdp_close = telit2_pdp_close,
 
     .imei = cellular_op_imei,
-    .iccid = telit2_op_iccid,
+    .iccid = cellular_op_iccid,
     .imsi = cellular_op_imsi,
     .creg = cellular_op_creg,
     .rssi = cellular_op_rssi,

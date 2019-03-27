@@ -75,7 +75,7 @@ struct cellular_ops {
     /** Read CDMA modem serial number (MEID). */
     int (*meid)(struct cellular *modem, char *buf, size_t len);
     /** Read SIM serial number (ICCID). */
-    int (*iccid)(struct cellular *modem, char *iccid, size_t len);
+    int (*iccid)(struct cellular *modem, char *buf, size_t len);
     /** Read the international mobile subscriber identity (IMSI). */
     int (*imsi)(struct cellular *modem, char *buf, size_t len);
 
