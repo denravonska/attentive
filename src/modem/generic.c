@@ -21,6 +21,7 @@ struct cellular_generic {
 static const struct cellular_ops generic_ops = {
     .imei = cellular_op_imei,
     .iccid = cellular_op_iccid,
+    .imsi = cellular_op_imsi,
     .creg = cellular_op_creg,
     .rssi = cellular_op_rssi,
 //    .clock_gettime = cellular_op_clock_gettime,

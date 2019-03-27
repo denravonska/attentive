@@ -581,6 +581,7 @@ static const struct cellular_ops ublox_ops = {
 
     .imei = cellular_op_imei,
     .iccid = ublox_op_iccid,
+    .imsi = cellular_op_imsi,
     .creg = cellular_op_creg,
     .rssi = cellular_op_rssi,
     //.clock_gettime = ublox_op_clock_gettime,
