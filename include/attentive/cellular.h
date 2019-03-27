@@ -78,6 +78,8 @@ struct cellular_ops {
     int (*iccid)(struct cellular *modem, char *buf, size_t len);
     /** Read the international mobile subscriber identity (IMSI). */
     int (*imsi)(struct cellular *modem, char *buf, size_t len);
+    /** Read firmware version identification (CGMR). */
+    int (*cgmr)(struct cellular *modem, char *buf, size_t len);
 
     /** Get network registration status. */
     int (*creg)(struct cellular *modem);

@@ -91,6 +91,21 @@ int cellular_op_iccid(struct cellular *modem, char *buf, size_t len)
     return 0;
 }
 
+int cellular_op_cgmr(struct cellular *modem, char *buf, size_t len)
+{
+    char fmt[32];
+    if (snprintf(fmt, sizeof(fmt), "%%%ds", (int) len) >= (int) sizeof(fmt)) {
+      return -1;
+    }
+
+    at_set_timeout(modem->at, 5);
+    const char *response = at_command(modem->at, "AT+CGMR");
+    at_simple_scanf(response, fmt, buf);
+    buf[len-1] = '\0';
+
+    return 0;
+}
+
 int cellular_op_imsi(struct cellular *modem, char *buf, size_t len)
 {
     char fmt[16];

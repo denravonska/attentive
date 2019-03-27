@@ -419,6 +419,7 @@ static const struct cellular_ops telit2_ops = {
     .imei = cellular_op_imei,
     .iccid = cellular_op_iccid,
     .imsi = cellular_op_imsi,
+    .cgmr = cellular_op_cgmr,
     .creg = cellular_op_creg,
     .rssi = cellular_op_rssi,
     //.clock_gettime = telit2_op_clock_gettime,
