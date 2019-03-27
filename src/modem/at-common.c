@@ -78,8 +78,8 @@ int cellular_op_imei(struct cellular *modem, char *buf, size_t len)
 
 int cellular_op_iccid(struct cellular *modem, char *buf, size_t len)
 {
-    char fmt[16];
-    if (snprintf(fmt, sizeof(fmt), "%%[0-9]%ds", (int) len) >= (int) sizeof(fmt)) {
+    char fmt[32];
+    if (snprintf(fmt, sizeof(fmt), "+CCID: %%[0-9]%ds", (int) len) >= (int) sizeof(fmt)) {
       return -1;
     }
 
