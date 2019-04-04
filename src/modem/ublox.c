@@ -372,8 +372,12 @@ static ssize_t ublox_socket_recv(struct cellular *modem, int connid, void *buffe
     at_set_command_scanner(modem->at, scanner_usord);
     
     const char *response = at_command(modem->at, "AT+USORD=%d,%d", connid, (uint32_t) length);
+
+    if(response == NULL)
+       return 0;
+
     unsigned int bytes_read;
-    if(response == NULL || sscanf(response, "+USORD: %*d,%d", &bytes_read) != 1)
+    if(sscanf(response, "+USORD: %*d,%d", &bytes_read) != 1)
        return SOCKET_ERROR;
 
     if(bytes_read <= 0)
