@@ -37,7 +37,7 @@ static const char *const ublox_urc_responses[] = {
 };
 
 struct ublox_socket {
-   int16_t bytes_available;
+   uint16_t bytes_available;
    enum socket_status status;
 };
 
@@ -370,7 +370,6 @@ static ssize_t ublox_socket_recv(struct cellular *modem, int connid, void *buffe
     at_set_timeout(modem->at, 5);
     at_set_character_handler(modem->at, character_handler_usord);
     at_set_command_scanner(modem->at, scanner_usord);
-    
     const char *response = at_command(modem->at, "AT+USORD=%d,%d", connid, (uint32_t) length);
 
     if(response == NULL)
@@ -390,7 +389,10 @@ static ssize_t ublox_socket_recv(struct cellular *modem, int connid, void *buffe
        return -4;
 
     memcpy((char *)buffer, data + 1, bytes_read);
-    priv->socket[connid].bytes_available -= bytes_read;
+    priv->socket[connid].bytes_available =
+          priv->socket[connid].bytes_available >= bytes_read
+          ? priv->socket[connid].bytes_available - bytes_read
+          : 0;
 
     return bytes_read;
 }
