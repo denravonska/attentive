@@ -165,6 +165,17 @@ void at_flush(struct at *at);
 bool at_send_raw(struct at *at, const void *data, size_t size);
 
 /**
+ * Poll AT interface for data.
+ *
+ * Useful for single-threaded systems which cannot feed the AT parser through
+ * interrupts. Polling also helps feeding the AT parser while being stuck in
+ * a blocking call chain, for example via a third party library.
+ *
+ * @param at Interface to poll.
+ */
+void at_poll(struct at *at);
+
+/**
  * Send an AT command and return -1 if it doesn't return OK.
  */
 #define at_command_simple(at, cmd...)                                       \
