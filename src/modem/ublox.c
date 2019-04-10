@@ -364,7 +364,7 @@ static ssize_t ublox_socket_recv(struct cellular *modem, int connid, void *buffe
     if(priv->socket[connid].status != SOCKET_STATUS_CONNECTED)
        return SOCKET_NOT_CONNECTED;
 
-    if(length <= 0)
+    if(length <= 0 || priv->socket[connid].bytes_available == 0)
        return 0;
     
     at_set_timeout(modem->at, 5);
