@@ -14,6 +14,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
+#include <inttypes.h>
 
 #include "at-common.h"
 
@@ -328,7 +329,7 @@ static ssize_t ublox_socket_send(struct cellular *modem, int connid, const void 
 
        // Send header
        char buf[32];
-       size_t len = sprintf(buf, "AT+USOWR=%d,%d,\"", connid, (int32_t) amount);
+       size_t len = sprintf(buf, "AT+USOWR=%d,%" PRIu32 ",\"", connid, (uint32_t) amount);
        at_send_raw(priv->dev.at, buf, len);
 
        // Send data
@@ -370,7 +371,7 @@ static ssize_t ublox_socket_recv(struct cellular *modem, int connid, void *buffe
     at_set_timeout(modem->at, 5);
     at_set_character_handler(modem->at, character_handler_usord);
     at_set_command_scanner(modem->at, scanner_usord);
-    const char *response = at_command(modem->at, "AT+USORD=%d,%d", connid, (uint32_t) length);
+    const char *response = at_command(modem->at, "AT+USORD=%d,%" PRIu32, connid, (uint32_t) length);
 
     if(response == NULL)
        return 0;
